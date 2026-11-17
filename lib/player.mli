@@ -1,11 +1,17 @@
+(* Represents one player, including their role*)
 
-type player:{
+type player = {
   role: string;
   (*dishwasher, chopper, fryer, assembler*)
   pos: int*int;
+  unlocked : bool;
 }
 
+val move: player -> string -> player
+(* updates position based on string*)
+
 val count: int
+(* ? *)
 
 val valid_move: string -> bool
 (*is client-entered keyboard input expected?
