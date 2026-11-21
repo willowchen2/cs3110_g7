@@ -1,4 +1,0 @@
-(lang dune 3.24)
-(name cs3110_g7)
-(sections (lib .) (bin ../../bin) (doc ../../doc/cs3110_g7))
-(files (lib (META dune-package opam)) (bin (cs3110_g7)) (doc (README.md)))
