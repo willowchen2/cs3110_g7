@@ -1,0 +1,11 @@
+lib: [
+  "_build/install/default/lib/cs3110_g7/META"
+  "_build/install/default/lib/cs3110_g7/dune-package"
+  "_build/install/default/lib/cs3110_g7/opam"
+]
+bin: [
+  "_build/install/default/bin/cs3110_g7"
+]
+doc: [
+  "_build/install/default/doc/cs3110_g7/README.md"
+]

@@ -1,4 +1,5 @@
 (executable
  (public_name cs3110_g7)
  (name main)
- (libraries cs3110_g7))
+ (libraries cs3110_g7 lwt lwt.unix unix)
+ (preprocess (pps lwt_ppx)))
