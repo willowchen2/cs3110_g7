@@ -15,6 +15,7 @@ let init () = { players = []; current_orders = []; score = 0; time_left = 300 }
 
 let add_player (game : t) (p : player) (key : string) =
   if List.length game.players >= 4 then false
+  else if List.exists (fun q -> q.role = p.role) game.players then false
   else begin
     game.players <- game.players @ [ p ];
     true

@@ -10,4 +10,4 @@ type players_pos = {
 
 val gen_map : players_pos -> string
 val update_map : players_pos -> string
-val render_screen : unit
+val render_screen : unit -> unit
