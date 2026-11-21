@@ -17,9 +17,9 @@ let name_from_char = function
   | _ -> raise (Invalid_argument "invalid player role")
 
 let init_pos_from_char = function
-  | "d" -> (0, 0) (*Display.DISH_POS*)
-  | "c" -> (1, 1) (*Display.CHOP_POS*)
-  | "f" -> (2, 2) (*Display.FRY_POS*)
+  | "d" -> (4, 3) (*Display.DISH_POS*)
+  | "c" -> (3, 4) (*Display.CHOP_POS*)
+  | "f" -> (3, 2) (*Display.FRY_POS*)
   | "a" -> (3, 3) (*Display.ASSEM.POS*)
   | _ -> raise (Invalid_argument "invalid player role")
 
@@ -69,10 +69,15 @@ let handle_client (game_state : Game.t)
           (*cleitn entered valid role, then add cleint to playes and start a
             forevvr listneing loop for more keyboard input*)
           (*update other players that new role is taken*)
+          let rest_clients =
+            match !connected_clients with
+            | [] -> []
+            | h :: t -> t
+          in
           let%lwt () =
             Lwt_list.iter_p
               (fun out -> Lwt_io.(write_line out) ("Role taken: " ^ line))
-              !connected_clients
+              rest_clients
           in
 
           game_state.players <-
@@ -98,7 +103,19 @@ let handle_client (game_state : Game.t)
               !connected_clients
           in
 
-          Lwt.return_unit
+          let rec listen_for_input () =
+            let%lwt input = Lwt_io.(read_line_opt _client_in) in
+            match input with
+            | None -> Lwt.return_unit (*client disconnected cleanly?*)
+            | Some key ->
+                let%lwt () =
+                  Lwt_io.printlf "Client %s entered: %s"
+                    (string_of_address client_address)
+                    key
+                in
+                listen_for_input ()
+          in
+          listen_for_input ()
         end
         else begin
           let%lwt () =
@@ -129,6 +146,11 @@ let p_main =
     end
   in
   let%lwt () = loop () in
+
+  let avatars =
+    List.map (fun player -> (player.role.[0], player.pos)) game_state.players
+  in
+  Display.render_screen avatars;
 
   let%lwt server =
     (*clines all send info to this server address, aka locl machie*)
