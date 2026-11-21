@@ -8,7 +8,7 @@ val kitchen_map : string list
 (**takes in a string per row representing the kitchet map*)
 
 val width : int
-(**width of the kitchet, exposed in mli to allow for bound checking*)
+(**width of the kitchen, exposed in mli to allow for bound checking*)
 
 val height : int
 (**height of the kitchet, exposed in mli to allow for bound checking*)
