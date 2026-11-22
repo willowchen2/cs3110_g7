@@ -72,7 +72,7 @@ let process_move (game : t) (p : player) (key : string) =
           | Some (dx, dy) ->
               let x, y = cur.pos in
               let target = (x + dx, y + dy) in
-              if in_bounds target && not (occupied game target) then begin
+              if Display.is_walkable target && not (occupied game target) then begin
                 (* records are immutable, so replace this player's record in
                    game.players with an updated copy *)
                 game.players <-
