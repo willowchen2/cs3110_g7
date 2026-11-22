@@ -28,6 +28,17 @@ let init_pos_from_char = function
   | "a" -> (3, 3) (*Display.ASSEM.POS*)
   | _ -> raise (Invalid_argument "invalid player role")
 
+let send_screen clients avatars =
+  let screen = "\027[H\027[2J\027[3J" ^ Display.update_map avatars ^ "\n" in
+  Lwt_list.iter_p
+    (fun c ->
+      Lwt.catch
+        (fun () ->
+          let%lwt () = Lwt_io.write c.output_channel screen in
+          Lwt_io.flush c.output_channel)
+        (fun _ -> Lwt.return_unit))
+    clients
+
 (*TO-DO: assign each client (client-address) to a player*)
 let handle_client (game_state : Game.t) (connected_clients : client list ref)
     client_address (_client_in, _client_out) =
@@ -124,19 +135,15 @@ let handle_client (game_state : Game.t) (connected_clients : client list ref)
             in
             Display.render_screen avatars;
 
-            let%lwt () =
-              Lwt_list.iter_p
-                (fun out ->
-                  Lwt_io.write_line out.output_channel
-                    ("\027[H\027[2J\027[3J" ^ Display.update_map avatars))
-                active_clients
-            in
+            let%lwt () = send_screen active_clients avatars in
 
             let rec listen_for_input () =
-              let%lwt input = Lwt_io.(read_line_opt _client_in) in
+              let%lwt input = Lwt_io.(read_char_opt _client_in) in
               match input with
               | None -> Lwt.return_unit (*client disconnected cleanly?*)
-              | Some key ->
+              | Some ('\n' | '\r') -> listen_for_input () (*ignore enter*)
+              | Some c ->
+                  let key = String.make 1 c in
                   let%lwt () =
                     Lwt_io.printlf "Client %s entered: %s"
                       (string_of_address client_address)
@@ -163,11 +170,8 @@ let handle_client (game_state : Game.t) (connected_clients : client list ref)
                           !connected_clients
                       in
 
-                      Lwt_list.iter_p
-                        (fun out ->
-                          Lwt_io.write_line out.output_channel
-                            ("\027[H\027[2J\027[3J" ^ Display.update_map avatars))
-                        active_clients (*send this only to active clients*)
+                      send_screen active_clients
+                        avatars (*send this only to active clients*)
                     end
                   in
                   listen_for_input ()
@@ -200,7 +204,7 @@ let handle_client (game_state : Game.t) (connected_clients : client list ref)
       Lwt.return_unit)
 (*deeals with disconnected clients. runs even after first one fails*)
 
-let p_main =
+let p_main () =
   let game_state = Game.init () in
   let rec loop () =
     print_endline
@@ -235,14 +239,17 @@ let p_main =
     Lwt_io.establish_server_with_client_address lo5000_address
       (handle_client game_state connected_clients)
   in
-  let%lwt () = Lwt_io.printl "Listening. Press Enter to stop." in
+  let%lwt () = Lwt_io.printl "Listening. Press q to stop." in
+  Display.enable_raw_mode ();
 
   let rec loop () =
-    let%lwt key = Lwt_io.(read_line stdin) in
+    let%lwt c = Lwt_io.(read_char stdin) in
 
-    if key = "exit" then Lwt.return_unit
+    if c = 'q' then Lwt.return_unit
     else
-      let valid_action = Game.process_move game_state server_player key in
+      let valid_action =
+        Game.process_move game_state server_player (String.make 1 c)
+      in
       if valid_action then begin
         let avatars =
           List.map
@@ -255,13 +262,7 @@ let p_main =
           List.filter (fun client -> client.role <> "") !connected_clients
         in
 
-        let%lwt () =
-          Lwt_list.iter_p
-            (fun out ->
-              Lwt_io.write_line out.output_channel
-                ("\027[H\027[2J\027[3J" ^ Display.update_map avatars))
-            active_clients
-        in
+        let%lwt () = send_screen active_clients avatars in
         loop ()
       end
       else loop () (*keep on accepting user input unless user enters exit*)
@@ -271,4 +272,38 @@ let p_main =
   let%lwt () = Lwt_io.printl "Shutting down." in
   Lwt_io.shutdown_server server
 
-let () = Lwt_main.run p_main
+let run_client host =
+  let%lwt ic, oc =
+    Lwt_io.open_connection
+      (Unix.ADDR_INET (Unix.inet_addr_of_string host, 5000))
+  in
+  Display.enable_raw_mode ();
+  let rec keys () =
+    match%lwt Lwt_io.read_char_opt Lwt_io.stdin with
+    | None | Some '\003' -> Lwt.return_unit (* Ctrl+C *)
+    | Some c ->
+        (* local echo so the role you type is visible; the next redraw clears
+           it *)
+        let%lwt () = Lwt_io.write_char Lwt_io.stdout c in
+        let%lwt () = Lwt_io.flush Lwt_io.stdout in
+        let%lwt () = Lwt_io.write_char oc c in
+        let%lwt () = Lwt_io.flush oc in
+        keys ()
+  in
+  let rec screen () =
+    match%lwt Lwt_io.read_char_opt ic with
+    | None -> Lwt.return_unit
+    | Some c ->
+        let%lwt () = Lwt_io.write_char Lwt_io.stdout c in
+        let%lwt () =
+          if Lwt_io.buffered ic = 0 then Lwt_io.flush Lwt_io.stdout
+          else Lwt.return_unit
+        in
+        screen ()
+  in
+  Lwt.pick [ keys (); screen () ]
+
+let () =
+  match Array.to_list Sys.argv with
+  | _ :: "client" :: host :: _ -> Lwt_main.run (run_client host)
+  | _ -> Lwt_main.run (p_main ())
