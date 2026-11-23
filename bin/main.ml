@@ -1,6 +1,5 @@
 (* Demo: log connections, then close each client's connection. *)
 open Cs3110_g7
-open Player
 
 type client = {
   output_channel : Lwt_io.output_channel;
@@ -53,7 +52,8 @@ let handle_client (game_state : Game.t) (connected_clients : client list ref)
     let all_roles = [ "c"; "a"; "d"; "f" ] in
     let occupied_roles =
       List.fold_left
-        (fun acc (player : Player.player) -> player.role :: acc)
+        (fun acc (player : Player.t) ->
+          String.make 1 (Char.lowercase_ascii (Player.avatar player)) :: acc)
         [] game_state.players
     in
     (*check to see what cahracters are left.*)
@@ -72,7 +72,8 @@ let handle_client (game_state : Game.t) (connected_clients : client list ref)
       (*print update *)
       let occupied_roles =
         List.fold_left
-          (fun acc (player : Player.player) -> player.role :: acc)
+          (fun acc (player : Player.t) ->
+            String.make 1 (Char.lowercase_ascii (Player.avatar player)) :: acc)
           [] game_state.players
       in
       (*check to see what cahracters are left.*)
@@ -115,11 +116,14 @@ let handle_client (game_state : Game.t) (connected_clients : client list ref)
 
             (*recent clietn added in, want to mdoify role*)
             let player =
-              {
-                role = line;
-                pos = init_pos_from_char line;
-                unlocked = line = "c";
-              }
+              Player.create (name_from_char line)
+                (match line with
+                | "d" -> Player.Dishwasher
+                | "c" -> Player.Chopper
+                | "f" -> Player.Fryer
+                | _ ->
+                    Player.Assembler (* "a"; line was already checked above *))
+                (init_pos_from_char line)
             in
 
             let active_clients =
@@ -130,7 +134,9 @@ let handle_client (game_state : Game.t) (connected_clients : client list ref)
 
             let avatars =
               List.map
-                (fun (player : Player.player) -> (player.role.[0], player.pos))
+                (fun (player : Player.t) ->
+                  ( Char.lowercase_ascii (Player.avatar player),
+                    Player.position player ))
                 game_state.players
             in
             Display.render_screen avatars;
@@ -158,8 +164,9 @@ let handle_client (game_state : Game.t) (connected_clients : client list ref)
                     else begin
                       let avatars =
                         List.map
-                          (fun (player : Player.player) ->
-                            (player.role.[0], player.pos))
+                          (fun (player : Player.t) ->
+                            ( Char.lowercase_ascii (Player.avatar player),
+                              Player.position player ))
                           game_state.players
                       in
                       Display.render_screen avatars;
@@ -213,7 +220,15 @@ let p_main () =
     let%lwt role = Lwt_io.(read_line stdin) in
     if role = "d" || role = "c" || role = "f" || role = "a" then begin
       game_state.players <-
-        [ { role; pos = init_pos_from_char role; unlocked = role = "c" } ];
+        [
+          Player.create (name_from_char role)
+            (match role with
+            | "d" -> Player.Dishwasher
+            | "c" -> Player.Chopper
+            | "f" -> Player.Fryer
+            | _ -> Player.Assembler)
+            (init_pos_from_char role);
+        ];
       Lwt.return_unit
     end
     else begin
@@ -226,7 +241,8 @@ let p_main () =
 
   let avatars =
     List.map
-      (fun (player : Player.player) -> (player.role.[0], player.pos))
+      (fun (player : Player.t) ->
+        (Char.lowercase_ascii (Player.avatar player), Player.position player))
       game_state.players
   in
   Display.render_screen avatars;
@@ -253,7 +269,9 @@ let p_main () =
       if valid_action then begin
         let avatars =
           List.map
-            (fun (player : Player.player) -> (player.role.[0], player.pos))
+            (fun (player : Player.t) ->
+              ( Char.lowercase_ascii (Player.avatar player),
+                Player.position player ))
             game_state.players
         in
         Display.render_screen avatars;
